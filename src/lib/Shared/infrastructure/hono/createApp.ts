@@ -6,7 +6,7 @@ import { logger } from "hono/logger";
 import { authMiddleware } from "./middlewares/authMiddleware";
 
 export const createRouter = () => {
-  return new Hono().basePath("/api/v1/");
+  return new Hono().basePath(process.env.BASE_PATH || "/api/v1/");
 };
 
 export const createApp = () => {

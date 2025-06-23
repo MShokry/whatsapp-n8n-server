@@ -9,6 +9,7 @@ import { EmptyMessageContentError } from "@/lib/Whatsapp/domain/exceptions/Empty
 import { InvalidMessageDataError } from "@/lib/Whatsapp/domain/exceptions/InvalidMessageDataError";
 import { InvalidPhoneNumberError } from "@/lib/Whatsapp/domain/exceptions/InvalidPhoneNumberError";
 import { RecipientNotFoundError } from "@/lib/Whatsapp/domain/exceptions/RecipientNotFoundError";
+import { WhatsappClientIsNotReadyError } from "@/lib/Whatsapp/domain/exceptions/WhatsappClientIsNotReadyError";
 import type { Context, TypedResponse } from "hono";
 import type { StatusCode } from "hono/utils/http-status";
 

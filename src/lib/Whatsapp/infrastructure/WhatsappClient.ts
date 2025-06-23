@@ -1,18 +1,22 @@
-import { WhatsappClientIsNotReadyError } from "@/lib/Whatsapp/domain/exceptions/WhatsappClientIsNotReadyError";
 import qrcode from "qrcode-terminal";
 import type { Client as WhatsAppWebClient } from "whatsapp-web.js";
 import pkg from "whatsapp-web.js";
+
+import { WhatsappClientIsNotReadyError } from "../domain/exceptions/WhatsappClientIsNotReadyError";
 
 const { Client, LocalAuth } = pkg;
 
 let client: WhatsAppWebClient;
 let isReady = false;
 let initializationPromise: Promise<void> | null = null;
+let currentQRCode: string | null = null;
+let connectionStatus: 'initializing' | 'qr' | 'authenticating' | 'ready' | 'disconnected' = 'disconnected';
 
 export const getWhatsAppClient = async (): Promise<
   InstanceType<typeof Client>
 > => {
   if (!initializationPromise) {
+    connectionStatus = 'initializing';
     initializationPromise = new Promise<void>((resolve) => {
       client = new Client({
         authStrategy: new LocalAuth(),
@@ -33,27 +37,36 @@ export const getWhatsAppClient = async (): Promise<
       client.on("qr", (qr) => {
         console.log("Scan the QR code to log in:");
         qrcode.generate(qr, { small: true });
+        currentQRCode = qr;
+        connectionStatus = 'qr';
       });
 
       client.on("ready", () => {
         console.log("WhatsApp client is ready!");
         isReady = true;
+        currentQRCode = null;
+        connectionStatus = 'ready';
         resolve();
       });
 
       client.on("authenticated", () => {
         console.log("Client authenticated!");
+        connectionStatus = 'authenticating';
       });
 
       client.on("disconnected", async (reason) => {
         console.log("Client was disconnected:", reason);
         isReady = false;
+        currentQRCode = null;
+        connectionStatus = 'disconnected';
         initializationPromise = null;
       });
 
       client.on("auth_failure", (msg) => {
         console.error("Authentication failure:", msg);
         isReady = false;
+        currentQRCode = null;
+        connectionStatus = 'disconnected';
         initializationPromise = null;
       });
 
@@ -67,4 +80,18 @@ export const getWhatsAppClient = async (): Promise<
     throw new WhatsappClientIsNotReadyError("WhatsApp client is not ready");
 
   return client;
+};
+
+export const getQRCode = (): string | null => {
+  return currentQRCode;
+};
+
+export const getConnectionStatus = (): string => {
+  return connectionStatus;
+};
+
+export const initializeClient = (): void => {
+  if (!initializationPromise) {
+    getWhatsAppClient().catch(console.error);
+  }
 };

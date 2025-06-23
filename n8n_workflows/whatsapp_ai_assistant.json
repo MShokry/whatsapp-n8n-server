@@ -1,0 +1,454 @@
+{
+  "name": "WhatsApp AI Assistant",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/v1/senders?unreadOnly=true",
+        "options": {}
+      },
+      "name": "Get Unread Senders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "mergeByPosition"
+      },
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Get the list of allowed senders from the database\nconst allowedSenders = $input.item(0).json.allowedSenders || [];\n\n// Get the list of senders with unread messages\nconst senders = $input.item(1).json.data.senders;\n\n// Filter senders to only include those in the allowed list\n// If allowedSenders is empty, include all senders\nconst filteredSenders = allowedSenders.length > 0 \n  ? senders.filter(sender => allowedSenders.includes(sender.id))\n  : senders;\n\nreturn { json: { filteredSenders } };"
+      },
+      "name": "Filter Allowed Senders",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "name": "Split Senders",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:3000/api/v1/messages?chatId={{$json[\"filteredSenders\"][0].id}}&limit=20",
+        "options": {}
+      },
+      "name": "Get Chat History",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        1720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract the chat messages\nconst messages = $input.item(0).json.data.messages;\nconst sender = $input.item(0).json.filteredSenders[0];\n\n// Format the messages for the AI\nlet conversationHistory = messages.map(msg => {\n  const role = msg.fromMe ? 'assistant' : 'user';\n  return {\n    role,\n    content: msg.body\n  };\n}).reverse(); // Reverse to get chronological order\n\n// Add system message at the beginning\nconversationHistory.unshift({\n  role: 'system',\n  content: 'You are a helpful WhatsApp assistant. Be concise, friendly, and helpful. If you don\\'t know something, say so politely.'\n});\n\nreturn {\n  json: {\n    conversationHistory,\n    sender\n  }\n};"
+      },
+      "name": "Format Conversation",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1940,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "predefinedCredentialType",
+        "resource": "chat",
+        "prompt": {
+          "messages": "={{$json.conversationHistory}}"
+        },
+        "options": {}
+      },
+      "name": "OpenAI",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        2160,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/v1/reply",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chatId",
+              "value": "={{$json.sender.id}}"
+            },
+            {
+              "name": "messageId",
+              "value": "={{$node[\"Get Chat History\"].json.data.messages[0].id}}"
+            },
+            {
+              "name": "replyText",
+              "value": "={{$json.text}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Send Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        2380,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "documentId": {
+          "__rl": true,
+          "value": "1Dw5eBIwwgvtSXcmz9_LDTtaHBsA7MZEjOHLcOcSXXXX",
+          "mode": "list",
+          "cachedResultName": "Allowed WhatsApp Senders",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Dw5eBIwwgvtSXcmz9_LDTtaHBsA7MZEjOHLcOcSXXXX/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 123456,
+          "mode": "list",
+          "cachedResultName": "Senders"
+        },
+        "options": {}
+      },
+      "name": "Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [
+        680,
+        120
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gSheet-credentials",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract the phone numbers from the Google Sheet\nconst rows = $input.item(0).json.rows;\n\n// Assuming the sheet has a column named 'PhoneNumber' or similar\nconst allowedSenders = rows\n  .filter(row => row.Active === 'Yes' || row.Active === 'yes' || row.Active === true)\n  .map(row => row.PhoneNumber);\n\nreturn { json: { allowedSenders } };"
+      },
+      "name": "Extract Allowed Senders",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        860,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/v1/webhook/setup",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "webhookUrl",
+              "value": "={{$workflow.staticData.webhookUrl || 'https://your-n8n-instance.com/webhook/whatsapp-incoming'}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Setup Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        240,
+        500
+      ]
+    },
+    {
+      "parameters": {},
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        700
+      ],
+      "webhookId": "whatsapp-incoming"
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:3000/api/v1/messages?chatId={{$json.data.message.from}}&limit=20",
+        "options": {}
+      },
+      "name": "Get Webhook Chat History",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        460,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract the chat messages\nconst messages = $input.item(0).json.data.messages;\nconst sender = $input.item(0).json.data.message.from;\nconst messageId = $input.item(0).json.data.message.id;\n\n// Format the messages for the AI\nlet conversationHistory = messages.map(msg => {\n  const role = msg.fromMe ? 'assistant' : 'user';\n  return {\n    role,\n    content: msg.body\n  };\n}).reverse(); // Reverse to get chronological order\n\n// Add system message at the beginning\nconversationHistory.unshift({\n  role: 'system',\n  content: 'You are a helpful WhatsApp assistant. Be concise, friendly, and helpful. If you don\\'t know something, say so politely.'\n});\n\nreturn {\n  json: {\n    conversationHistory,\n    sender,\n    messageId\n  }\n};"
+      },
+      "name": "Format Webhook Conversation",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        680,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "predefinedCredentialType",
+        "resource": "chat",
+        "prompt": {
+          "messages": "={{$json.conversationHistory}}"
+        },
+        "options": {}
+      },
+      "name": "OpenAI Webhook",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        900,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/v1/reply",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chatId",
+              "value": "={{$json.sender}}"
+            },
+            {
+              "name": "messageId",
+              "value": "={{$json.messageId}}"
+            },
+            {
+              "name": "replyText",
+              "value": "={{$json.text}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Send Webhook Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        700
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Unread Senders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Unread Senders": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Filter Allowed Senders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Allowed Senders": {
+      "main": [
+        [
+          {
+            "node": "Split Senders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Senders": {
+      "main": [
+        [
+          {
+            "node": "Get Chat History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Chat History": {
+      "main": [
+        [
+          {
+            "node": "Format Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Conversation": {
+      "main": [
+        [
+          {
+            "node": "OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Extract Allowed Senders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Allowed Senders": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Webhook Chat History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Webhook Chat History": {
+      "main": [
+        [
+          {
+            "node": "Format Webhook Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Webhook Conversation": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Webhook": {
+      "main": [
+        [
+          {
+            "node": "Send Webhook Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {}
+}

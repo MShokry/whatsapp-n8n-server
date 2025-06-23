@@ -86,3 +86,14 @@ Developed by [Nicolas Del Rosario](https://github.com/nicolasdelrosario)
 ## 📜 License
 
 MIT
+
+
+
+## Server Status:
+The server is running successfully on http://localhost:3000 with all new endpoints available:
+
+- POST /api/v1/send-message - Send messages (existing)
+- GET /api/v1/qr-code - Get QR code for authentication
+- GET /api/v1/messages?chatId=<id>&limit=<number> - Read messages
+- GET /api/v1/senders?type=<all|contacts|groups> - Get sender lists
+The WhatsApp client initialization has started automatically and will generate a QR code that you can access via the /qr-code endpoint for authentication with WhatsApp Web. All diagnostic errors have been resolved and the codebase is now clean and functional.

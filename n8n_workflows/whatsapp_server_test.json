@@ -1,0 +1,326 @@
+{
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -440,
+        380
+      ],
+      "id": "9e98b346-1f54-43b0-b957-ee686386227d"
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/v1/qr-code",
+        "options": {}
+      },
+      "name": "Test QR Code",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        0,
+        80
+      ],
+      "id": "45e06508-1865-4745-adeb-5ff14c4efa6a"
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/v1/senders",
+        "options": {}
+      },
+      "name": "Test Get All Senders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        0,
+        280
+      ],
+      "id": "af9b3de4-7068-4af6-9358-b003a722bf77"
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/v1/senders?unreadOnly=true",
+        "options": {}
+      },
+      "name": "Test Unread Senders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        0,
+        480
+      ],
+      "id": "ed11a323-07d2-4d1b-883b-b4ef46b2c84d"
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/v1/senders?allowedSenders=+201144804866,+1115205568",
+        "options": {}
+      },
+      "name": "Test Filtered Senders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        -220,
+        680
+      ],
+      "id": "9a618e73-fe79-4549-8c30-1d6927288040"
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "http://localhost:3000/api/v1/send-message",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "{\n\"number\":\"201144804866\",\n  \"content\":\"This is a testing with automation\"\n}",
+        "headerParametersJson": "{\n  \"Accept\": \"application/json\",\n  \"Content-Type\": \"application/json\"\n}",
+        "queryParametersJson": "{}"
+      },
+      "name": "Test Send Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        220,
+        80
+      ],
+      "id": "1feb3a4c-0137-41b7-bb3a-eb27731be502"
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/v1/messages?chatId=201144804866@c.us&limit=5",
+        "options": {}
+      },
+      "name": "Test Get Messages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        240,
+        280
+      ],
+      "id": "09ab3b07-755c-46af-aad4-e8166c479b9a"
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "http://localhost:3000/api/v1/reply",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n\"chatId\":\"{{ $json.senders[0].id }}\",\n\"messageId\":\"{{ $json.senders[0].chat.lastMessage._data.id.id }}\",\n\"replyText\":\"Testing reply for automation\"\n}",
+        "headerParametersJson": "{\n  \"Accept\": \"application/json\",\n  \"Content-Type\": \"application/json\"\n}",
+        "queryParametersJson": "{}"
+      },
+      "name": "Test Reply Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        220,
+        480
+      ],
+      "id": "a9620560-55d6-403e-9ded-dc065d57e5bf"
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "http://localhost:3000/api/v1/webhook/setup",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "{\n\"webhookUrl\":\"https://moved-mustang-outgoing.ngrok-free.app\"\n}",
+        "headerParametersJson": "{\n  \"Accept\": \"application/json\",\n  \"Content-Type\": \"application/json\"\n}",
+        "queryParametersJson": "{}"
+      },
+      "name": "Test Setup Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        0,
+        680
+      ],
+      "id": "e477f5f5-559d-481e-bdee-01f327d4ae01"
+    },
+    {
+      "parameters": {
+        "requestMethod": "DELETE",
+        "url": "http://localhost:3000/api/v1/webhook",
+        "options": {}
+      },
+      "name": "Test Remove Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        220,
+        680
+      ],
+      "id": "77e9a151-c32b-4430-b43b-8336d656b594"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Collect all test results\nconst results = [];\n\n// Process each input item\nfor (let i = 0; i < $input.all().length; i++) {\n  const item = $input.all()[i];\n  const nodeName = item.pairedItem?.item || i;\n  \n  results.push({\n    test: `Test ${i + 1}`,\n    node: nodeName,\n    status: item.json ? 'Success' : 'Failed',\n    response: item.json || item.error,\n    timestamp: new Date().toISOString()\n  });\n}\n\nreturn results.map(result => ({ json: result }));"
+      },
+      "name": "Collect Test Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        600,
+        360
+      ],
+      "id": "7b527320-ccbb-4dbb-b0ec-1a6d9b234e44"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate test report\nconst testResults = $input.all();\nconst totalTests = testResults.length;\nconst passedTests = testResults.filter(item => item.json.status === 'Success').length;\nconst failedTests = totalTests - passedTests;\n\nconst report = {\n  summary: {\n    total: totalTests,\n    passed: passedTests,\n    failed: failedTests,\n    success_rate: `${((passedTests / totalTests) * 100).toFixed(2)}%`\n  },\n  details: testResults.map(item => item.json),\n  timestamp: new Date().toISOString()\n};\n\nconsole.log('WhatsApp Server Test Report:', JSON.stringify(report, null, 2));\n\nreturn { json: report };"
+      },
+      "name": "Generate Report",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        820,
+        380
+      ],
+      "id": "d8b0057d-1d90-40fe-ab10-1e7e5dc04248"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Test QR Code",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Test Get All Senders",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Test Unread Senders",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Test Filtered Senders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test QR Code": {
+      "main": [
+        [
+          {
+            "node": "Test Send Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Get All Senders": {
+      "main": [
+        [
+          {
+            "node": "Test Get Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Unread Senders": {
+      "main": [
+        [
+          {
+            "node": "Test Reply Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Filtered Senders": {
+      "main": [
+        [
+          {
+            "node": "Test Setup Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Send Message": {
+      "main": [
+        [
+          {
+            "node": "Collect Test Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Get Messages": {
+      "main": [
+        [
+          {
+            "node": "Collect Test Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Reply Message": {
+      "main": [
+        [
+          {
+            "node": "Collect Test Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Setup Webhook": {
+      "main": [
+        [
+          {
+            "node": "Test Remove Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Remove Webhook": {
+      "main": [
+        [
+          {
+            "node": "Collect Test Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Test Results": {
+      "main": [
+        [
+          {
+            "node": "Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e501e53e2db7db55d235cb2c13f5488f532820ae780081ff9d79539c74ed3ce3"
+  }
+}
