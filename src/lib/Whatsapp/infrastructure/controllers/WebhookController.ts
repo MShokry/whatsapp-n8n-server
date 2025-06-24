@@ -21,7 +21,7 @@ export class WebhookController implements Controller {
     return c.json({ message: "Method not allowed" }, 405);
   }
 
-  private async setup(
+   async setup(
     c: Context,
   ): Promise<Response & TypedResponse<ControllerResponse, StatusCode, "json">> {
     try {
@@ -54,7 +54,7 @@ export class WebhookController implements Controller {
     }
   }
 
-  private async remove(
+   async remove(
     c: Context,
   ): Promise<Response & TypedResponse<ControllerResponse, StatusCode, "json">> {
     try {

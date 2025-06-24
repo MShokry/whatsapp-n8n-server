@@ -19,8 +19,12 @@ export const getWhatsAppClient = async (): Promise<
     connectionStatus = 'initializing';
     initializationPromise = new Promise<void>((resolve) => {
       client = new Client({
-        authStrategy: new LocalAuth(),
+        authStrategy: new LocalAuth({
+          clientId: "whatsapp-n8n-server",
+          dataPath: "./.wwebjs_auth"
+        }),
         puppeteer: {
+          headless: true,
           args: [
             "--no-sandbox",
             "--disable-setuid-sandbox",
@@ -30,10 +34,17 @@ export const getWhatsAppClient = async (): Promise<
             "--no-zygote",
             "--single-process",
             "--disable-gpu",
+
           ],
         },
-      });
 
+      });
+            //       "--disable-web-security",
+            // "--disable-features=VizDisplayCompositor"
+        // webVersionCache: {
+        //   type: 'remote',
+        //   remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
+        // }
       client.on("qr", (qr) => {
         console.log("Scan the QR code to log in:");
         qrcode.generate(qr, { small: true });
@@ -43,6 +54,12 @@ export const getWhatsAppClient = async (): Promise<
 
       client.on("ready", () => {
         console.log("WhatsApp client is ready!");
+        // Sync chat history on first run or when needed
+        try {
+          client.setBackgroundSync(true); // Sync last 5 chats
+        } catch (syncError) {
+          console.warn('Failed to sync chat history:', syncError instanceof Error ? syncError.message : String(syncError));
+        }
         isReady = true;
         currentQRCode = null;
         connectionStatus = 'ready';

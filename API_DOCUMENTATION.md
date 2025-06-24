@@ -145,13 +145,13 @@ curl "http://localhost:3000/api/v1/senders?unreadOnly=true&allowedSenders=+12345
 ### 5. Reply to Message
 **POST** `/reply`
 
-Replies to a specific message in a chat.
+Replies to a specific message in a chat. Automatically marks the chat as read and sends read confirmation.
 
 **Request Body:**
 ```json
 {
-  "chatId": "chat_id",
-  "messageId": "message_id",
+  "chatId": "1234567890@c.us",
+  "messageId": "message_id_here",
   "replyText": "This is a reply"
 }
 ```
@@ -162,14 +162,46 @@ Replies to a specific message in a chat.
   "success": true,
   "message": "Reply sent successfully",
   "data": {
-    "chatId": "chat_id",
-    "messageId": "message_id",
+    "chatId": "1234567890@c.us",
+    "messageId": "message_id_here",
     "replyText": "This is a reply"
   }
 }
 ```
 
-### 6. Setup Webhook
+### 6. Transcribe Voice Message
+**POST** `/transcribe-voice`
+
+Transcribes a voice message using OpenAI Whisper API.
+
+**Request Body:**
+```json
+{
+  "messageId": "voice_message_id_here"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Voice message transcribed successfully",
+  "data": {
+    "messageId": "voice_message_id_here",
+    "transcription": "Hello, this is the transcribed text from the voice message."
+  }
+}
+```
+
+**Error Response:**
+```json
+{
+  "message": "Failed to transcribe voice message",
+  "error": "Message is not a voice message"
+}
+```
+
+### 7. Setup Webhook
 **POST** `/webhook/setup`
 
 Sets up a webhook URL to receive notifications for incoming messages.
@@ -192,7 +224,7 @@ Sets up a webhook URL to receive notifications for incoming messages.
 }
 ```
 
-### 7. Remove Webhook
+### 8. Remove Webhook
 **DELETE** `/webhook`
 
 Removes the configured webhook.
@@ -359,6 +391,39 @@ Error responses include a descriptive message:
 4. Wait for status to become "ready"
 5. Start using the API endpoints
 6. Set up webhook for real-time message notifications
+
+## Production Improvements
+
+### Session Persistence
+- **Persistent Authentication:** WhatsApp sessions are now saved locally using `LocalAuth` with a dedicated client ID
+- **Automatic Reconnection:** The client automatically attempts to reconnect using saved session data
+- **Reduced QR Scanning:** Sessions persist between server restarts, minimizing QR code requirements
+
+### Voice Message Support
+- **Automatic Transcription:** Voice messages are automatically transcribed using OpenAI Whisper API
+- **Webhook Integration:** Voice messages in webhooks include both original audio and transcribed text
+- **AI-Ready Format:** Transcriptions are formatted for easy AI processing in n8n workflows
+
+### Enhanced Webhook Reliability
+- **Retry Mechanism:** Failed webhook deliveries are retried up to 3 times with exponential backoff
+- **Timeout Handling:** 10-second timeout prevents hanging requests
+- **Error Recovery:** Webhook automatically reactivates after client reconnection
+- **Structured Data:** Improved webhook payload structure with separate message, chat, and contact objects
+
+### Read Confirmation
+- **Automatic Read Receipts:** Replying to messages automatically marks chats as read
+- **Unread Count Reset:** Clears unread message indicators when responding
+- **Better UX:** Provides proper message acknowledgment for users
+
+## Production Considerations
+
+- **Environment Variables:** Set `OPENAI_API_KEY` for voice transcription functionality
+- **HTTPS Required:** Use HTTPS for webhook URLs in production
+- **Session Storage:** Ensure `.wwebjs_auth` directory is persistent and backed up
+- **Error Handling:** Implement proper error handling and logging
+- **Rate Limiting:** Consider rate limiting for API endpoints
+- **Monitoring:** Monitor WhatsApp client connection status and webhook delivery
+- **Security:** Never expose OpenAI API keys in logs or client-side code
 
 ## Notes
 

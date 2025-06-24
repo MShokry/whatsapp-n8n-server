@@ -1,0 +1,308 @@
+{
+  "name": "WhatsApp Voice Message Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-voice",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-voice",
+      "name": "Voice Message Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "voice-handler"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if this is a voice message and extract data compatible with whatsapp-web.js v1.30.0\nconst webhookData = $input.item(0).json;\nconst message = webhookData.message;\nconst contact = webhookData.contact;\nconst chat = webhookData.chat;\n\ntry {\n  // Extract message ID - handle different formats\n  let messageId = message?.id;\n  if (typeof messageId === 'object' && messageId?.id) {\n    messageId = messageId.id;\n  } else if (typeof messageId === 'object' && messageId?._serialized) {\n    messageId = messageId._serialized;\n  }\n\n  // Extract sender ID\n  let from = message?.from;\n  if (typeof from === 'object' && from?._serialized) {\n    from = from._serialized;\n  }\n\n  if (message && message.type === 'ptt' && message.transcription) {\n    return {\n      json: {\n        isVoiceMessage: true,\n        messageId: messageId || 'unknown',\n        transcription: message.transcription,\n        originalBody: message.originalBody,\n        from: from || '',\n        chat: {\n          id: chat?.id?._serialized || chat?.id || '',\n          name: chat?.name || '',\n          isGroup: Boolean(chat?.isGroup),\n          lastMessage: {\n            _data: {\n              id: {\n                id: messageId || 'unknown'\n              }\n            }\n          }\n        },\n        contact: {\n          id: contact?.id?._serialized || contact?.id || '',\n          name: contact?.name || contact?.pushname || 'Unknown',\n          pushname: contact?.pushname || ''\n        }\n      }\n    };\n  } else {\n    return {\n      json: {\n        isVoiceMessage: false,\n        messageId: messageId || 'unknown',\n        body: message?.body || '',\n        from: from || '',\n        chat: {\n          id: chat?.id?._serialized || chat?.id || '',\n          name: chat?.name || '',\n          isGroup: Boolean(chat?.isGroup),\n          lastMessage: {\n            _data: {\n              id: {\n                id: messageId || 'unknown'\n              }\n            }\n          }\n        },\n        contact: {\n          id: contact?.id?._serialized || contact?.id || '',\n          name: contact?.name || contact?.pushname || 'Unknown',\n          pushname: contact?.pushname || ''\n        }\n      }\n    };\n  }\n} catch (error) {\n  console.error('Error processing message:', error);\n  return {\n    json: {\n      isVoiceMessage: false,\n      messageId: 'error',\n      body: 'Error processing message',\n      from: '',\n      chat: {\n        id: '',\n        name: '',\n        isGroup: false,\n        lastMessage: {\n          _data: {\n            id: {\n              id: 'error'\n            }\n          }\n        }\n      },\n      contact: {\n        id: '',\n        name: 'Error',\n        pushname: ''\n      },\n      error: error.message\n    }\n  };\n}"
+      },
+      "id": "check-voice",
+      "name": "Check Voice Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.isVoiceMessage}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "voice-filter",
+      "name": "Is Voice Message?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3000/transcribe-voice",
+        "authentication": "none",
+        "requestFormat": "json",
+        "jsonBody": "={\n  \"messageId\": \"{{ $json.messageId }}\"\n}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "enabled": true,
+            "maxAttempts": 3
+          },
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "transcribe-fallback",
+      "name": "Transcribe Voice (Fallback)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare message for AI processing\nconst item = $input.item(0).json;\n\ntry {\n  let messageText = '';\n  if (item.isVoiceMessage) {\n    // Use transcription from webhook or fallback transcription\n    const fallbackData = $input.item(1)?.json;\n    messageText = item.transcription || fallbackData?.transcription || fallbackData?.data?.transcription || '[Voice message - transcription failed]';\n  } else {\n    messageText = item.body || '';\n  }\n\n  return {\n    json: {\n      messageText: messageText,\n      messageType: item.isVoiceMessage ? 'voice' : 'text',\n      from: item.from || '',\n      chat: item.chat || {},\n      contact: item.contact || {},\n      originalMessageId: item.messageId || 'unknown'\n    }\n  };\n} catch (error) {\n  console.error('Error preparing AI data:', error);\n  return {\n    json: {\n      messageText: 'Error processing message',\n      messageType: 'error',\n      from: '',\n      chat: {},\n      contact: {},\n      originalMessageId: 'error',\n      error: error.message\n    }\n  };\n}"
+      },
+      "id": "prepare-ai",
+      "name": "Prepare for AI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://localhost:3000/messages?chatId={{ encodeURIComponent($json.from) }}&limit=20",
+        "authentication": "none",
+        "options": {
+          "timeout": 15000,
+          "retry": {
+            "enabled": true,
+            "maxAttempts": 2
+          },
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "get-history",
+      "name": "Get Chat History",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format conversation for OpenAI\nconst currentMessage = $input.item(0).json;\nconst historyResponse = $input.item(1).json;\n\ntry {\n  let messages = [];\n\n  // Add system message\n  messages.push({\n    role: 'system',\n    content: 'You are a helpful AI assistant for WhatsApp. Respond naturally and helpfully to user messages.'\n  });\n\n  // Add chat history if available\n  if (historyResponse && historyResponse.data && Array.isArray(historyResponse.data)) {\n    historyResponse.data.slice(-10).forEach(msg => {\n      if (msg && msg.body) {\n        messages.push({\n          role: msg.fromMe ? 'assistant' : 'user',\n          content: msg.body\n        });\n      }\n    });\n  }\n\n  // Add current message\n  messages.push({\n    role: 'user',\n    content: currentMessage.messageText || 'No message content'\n  });\n\n  return {\n    json: {\n      messages: messages,\n      model: 'gpt-3.5-turbo',\n      max_tokens: 500,\n      temperature: 0.7\n    }\n  };\n} catch (error) {\n  console.error('Error formatting conversation:', error);\n  return {\n    json: {\n      messages: [\n        {\n          role: 'system',\n          content: 'You are a helpful AI assistant for WhatsApp.'\n        },\n        {\n          role: 'user',\n          content: 'Error processing message history'\n        }\n      ],\n      model: 'gpt-3.5-turbo',\n      max_tokens: 500,\n      temperature: 0.7,\n      error: error.message\n    }\n  };\n}"
+      },
+      "id": "format-conversation",
+      "name": "Format Conversation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "message",
+        "model": "gpt-3.5-turbo",
+        "messages": {
+          "messageValues": "={{ $json.messages }}"
+        },
+        "options": {
+          "maxTokens": "={{ $json.max_tokens }}",
+          "temperature": "={{ $json.temperature }}",
+          "topP": 1,
+          "frequencyPenalty": 0,
+          "presencePenalty": 0
+        }
+      },
+      "id": "openai-chat",
+      "name": "OpenAI Chat",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.3,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3000/reply",
+        "authentication": "none",
+        "requestFormat": "json",
+        "jsonBody": "={\n  \"messageId\": \"{{ $('prepare-ai').item().json.originalMessageId }}\",\n  \"message\": \"{{ $json.choices[0].message.content }}\"\n}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "enabled": true,
+            "maxAttempts": 3
+          },
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "send-reply",
+      "name": "Send Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"senders\": [\n    {\n      \"id\": \"{{ $('check-voice').item().json.from }}\",\n      \"name\": \"{{ $('check-voice').item().json.contact?.name || $('check-voice').item().json.contact?.pushname || 'Unknown' }}\",\n      \"isGroup\": {{ $('check-voice').item().json.chat?.isGroup || false }},\n      \"isMuted\": false,\n      \"isReadOnly\": false,\n      \"unreadCount\": 1,\n      \"timestamp\": {{ Date.now() }},\n      \"lastMessage\": {\n        \"body\": \"{{ $('check-voice').item().json.isVoiceMessage ? $('check-voice').item().json.transcription : $('check-voice').item().json.body }}\",\n        \"timestamp\": {{ Date.now() }},\n        \"from\": \"{{ $('check-voice').item().json.from }}\",\n        \"type\": \"{{ $('check-voice').item().json.isVoiceMessage ? 'ptt' : 'chat' }}\"\n      },\n      \"chat\": {\n        \"lastMessage\": {\n          \"_data\": {\n            \"id\": {\n              \"id\": \"{{ $('check-voice').item().json.messageId }}\"\n            }\n          }\n        }\n      }\n    }\n  ],\n  \"filteredSenders\": [\n    {\n      \"id\": \"{{ $('check-voice').item().json.from }}\",\n      \"name\": \"{{ $('check-voice').item().json.contact?.name || $('check-voice').item().json.contact?.pushname || 'Unknown' }}\",\n      \"isGroup\": {{ $('check-voice').item().json.chat?.isGroup || false }},\n      \"isMuted\": false,\n      \"isReadOnly\": false,\n      \"unreadCount\": 1,\n      \"timestamp\": {{ Date.now() }},\n      \"lastMessage\": {\n        \"body\": \"{{ $('check-voice').item().json.isVoiceMessage ? $('check-voice').item().json.transcription : $('check-voice').item().json.body }}\",\n        \"timestamp\": {{ Date.now() }},\n        \"from\": \"{{ $('check-voice').item().json.from }}\",\n        \"type\": \"{{ $('check-voice').item().json.isVoiceMessage ? 'ptt' : 'chat' }}\"\n      },\n      \"chat\": {\n        \"lastMessage\": {\n          \"_data\": {\n            \"id\": {\n              \"id\": \"{{ $('check-voice').item().json.messageId }}\"\n            }\n          }\n        }\n      }\n    }\n  ],\n  \"body\": {\n    \"message\": {\n      \"id\": \"{{ $('check-voice').item().json.messageId }}\",\n      \"from\": \"{{ $('check-voice').item().json.from }}\",\n      \"body\": \"{{ $('check-voice').item().json.isVoiceMessage ? $('check-voice').item().json.transcription : $('check-voice').item().json.body }}\",\n      \"type\": \"{{ $('check-voice').item().json.isVoiceMessage ? 'ptt' : 'chat' }}\",\n      \"transcription\": \"{{ $('check-voice').item().json.transcription || '' }}\"\n    },\n    \"contact\": {\n      \"id\": \"{{ $('check-voice').item().json.contact?.id }}\",\n      \"name\": \"{{ $('check-voice').item().json.contact?.name }}\",\n      \"pushname\": \"{{ $('check-voice').item().json.contact?.pushname }}\"\n    },\n    \"chat\": {\n      \"id\": \"{{ $('check-voice').item().json.chat?.id }}\",\n      \"name\": \"{{ $('check-voice').item().json.chat?.name }}\",\n      \"isGroup\": {{ $('check-voice').item().json.chat?.isGroup || false }}\n    }\n  }\n}",
+        "options": {
+          "responseHeaders": {
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "id": "webhook-response",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2220, 300]
+    }
+  ],
+  "connections": {
+    "webhook-voice": {
+      "main": [
+        [
+          {
+            "node": "check-voice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "check-voice": {
+      "main": [
+        [
+          {
+            "node": "voice-filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "voice-filter": {
+      "main": [
+        [
+          {
+            "node": "transcribe-fallback",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "prepare-ai",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "prepare-ai",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "transcribe-fallback": {
+      "main": [
+        [
+          {
+            "node": "prepare-ai",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "prepare-ai": {
+      "main": [
+        [
+          {
+            "node": "get-history",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get-history": {
+      "main": [
+        [
+          {
+            "node": "format-conversation",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "format-conversation": {
+      "main": [
+        [
+          {
+            "node": "openai-chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "openai-chat": {
+      "main": [
+        [
+          {
+            "node": "send-reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "send-reply": {
+      "main": [
+        [
+          {
+            "node": "webhook-response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "timezone": "America/New_York"
+  },
+  "versionId": "voice-handler-v1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "voice-handler",
+  "tags": [],
+  "triggerCount": 0,
+  "createdAt": "2024-01-01T00:00:00.000Z",
+  "updatedAt": "2024-01-01T00:00:00.000Z"
+}
