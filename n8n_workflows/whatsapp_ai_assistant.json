@@ -6,7 +6,7 @@
           "interval": [
             {
               "field": "minutes",
-              "minutesInterval": 15
+              "minutesInterval": 30
             }
           ]
         }
@@ -15,8 +15,8 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1,
       "position": [
-        -920,
-        260
+        -1140,
+        300
       ],
       "id": "34337521-f6f5-46ef-9b53-1d1b589a7344"
     },
@@ -29,8 +29,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 1,
       "position": [
-        -620,
-        280
+        -580,
+        260
       ],
       "id": "455e18d4-a412-40a6-a36f-1b3d3e1b22bb"
     },
@@ -68,7 +68,7 @@
         "url": "http://localhost:3000/api/v1/reply",
         "jsonParameters": true,
         "options": {},
-        "bodyParametersJson": "={\n  \"chatId\":\"{{ $('Code4')?.item.json.sender  }}\",\n  \"messageId\":\"{{ $('Code1').item.json.filteredSenders[0].chat.lastMessage._data.id.id }}\",\n  \"replyText\":\"{{ $json.output || $json.text }}\"\n} ",
+        "bodyParametersJson": "={\n  \"chatId\":\"{{ $('Split Senders').item.json.filteredSenders[0].id }}\",\n  \"messageId\":\"{{ $('Split Senders').item.json.filteredSenders[0].lastMessage.id || $('Get Chat History').item.json.messages[0].id }}\",\n  \"replyText\":{{JSON.stringify(($json.output || $json.text) + \"AIBOT\") }} \n} ",
         "headerParametersJson": "{\"Accept\": \"application/json\", \"Content-Type\": \"application/json\"}",
         "queryParametersJson": "{}"
       },
@@ -83,41 +83,6 @@
     },
     {
       "parameters": {
-        "documentId": {
-          "__rl": true,
-          "value": "1M5SPii30dCnnUnLpGRZeJcnP8Mhh_OolJxQ0NFGixfo",
-          "mode": "list",
-          "cachedResultName": "whatsapp_integration",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1M5SPii30dCnnUnLpGRZeJcnP8Mhh_OolJxQ0NFGixfo/edit?usp=drivesdk"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": 120046669,
-          "mode": "list",
-          "cachedResultName": "google_sheets_template",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1M5SPii30dCnnUnLpGRZeJcnP8Mhh_OolJxQ0NFGixfo/edit#gid=120046669"
-        },
-        "options": {}
-      },
-      "name": "Google Sheets",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 3,
-      "position": [
-        -560,
-        60
-      ],
-      "id": "42a6a121-3b48-4245-8c30-83c64fad5e37",
-      "alwaysOutputData": true,
-      "executeOnce": false,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "nybCA6Wi2Q9cutb6",
-          "name": "Google Sheets account"
-        }
-      }
-    },
-    {
-      "parameters": {
         "httpMethod": "POST",
         "path": "whatsapp-incoming",
         "options": {}
@@ -126,8 +91,8 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
       "position": [
-        -940,
-        760
+        -1140,
+        -140
       ],
       "webhookId": "whatsapp-incoming",
       "id": "68ea5e60-f8f2-4e63-9ae7-9421048fc111"
@@ -152,7 +117,7 @@
         "url": "http://localhost:3000/api/v1/webhook/setup",
         "jsonParameters": true,
         "options": {},
-        "bodyParametersJson": "{\n\"webhookUrl\":\"https://moved-mustang-outgoing.ngrok-free.app/webhook/whatsapp-incoming\"\n}",
+        "bodyParametersJson": "{\n\"webhookUrl\":\"http://localhost:5678/webhook/whatsapp-incoming\"\n}",
         "headerParametersJson": "{\n  \"Accept\": \"application/json\",\n  \"Content-Type\": \"application/json\"\n}",
         "queryParametersJson": "{}"
       },
@@ -160,8 +125,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 1,
       "position": [
-        -620,
-        480
+        -580,
+        460
       ],
       "id": "1fa703b5-0022-4b23-888d-b51e052591f6"
     },
@@ -172,8 +137,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -340,
-        80
+        -520,
+        -20
       ],
       "id": "55498a45-2ddd-4581-884d-8ab8f9ad53fb",
       "name": "Code",
@@ -181,36 +146,17 @@
     },
     {
       "parameters": {
-        "jsCode": "// Get the list of allowed senders from the database\nconst allowedSenders = $('Code').first().json.allowedSenders||$input.first().json.allowedSenders;\n// // Get the list of senders with unread messages\nconst senders = $('Get Unread Senders').first().json.senders||$input.last().json.senders;\n// Filter senders to only include those in the allowed list\n// If allowedSenders is empty, include all senders\n\nconst filteredSenders = allowedSenders.length > 0 \n  ? senders.filter(sender => !!allowedSenders.includes( sender.id.split('@')[0]))\n  : senders;\n\nreturn  { filteredSenders };"
+        "jsCode": "// Get the list of allowed senders from the database\nconst allowedSenders = $('Code').first().json.allowedSenders||$input.first().json.allowedSenders;\n// // Get the list of senders with unread messages\nlet senders = $input.last().json.senders ||  [$input.last().json.body]\n  \n// if ($('Get Unread Senders') !== undefined) {\n//   senders = $('Get Unread Senders')?.first().json.senders\n// } else if ($('Webhook') !== undefined) {\n//   senders = [$('Webhook')?.first().json.body.chat] ;\n// }else{\n//   senders = $input.last().json.senders ;\n// }\n\n// Filter senders to only include those in the allowed list\n// If allowedSenders is empty, include all senders\n\nconst filteredSenders = allowedSenders.length > 0 \n  ? senders.filter(sender => !!allowedSenders.includes( sender.id.split('@')[0]))\n  : senders;\n\nreturn  { filteredSenders };"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        140,
+        80,
         240
       ],
       "id": "20e7e6b4-cae5-4080-9997-604a0a90564e",
-      "name": "Code1"
-    },
-    {
-      "parameters": {
-        "modelName": "models/gemini-2.0-flash-lite",
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
-      "typeVersion": 1,
-      "position": [
-        1540,
-        0
-      ],
-      "id": "7673c172-7827-48f8-92b5-94ae0d72cb24",
-      "name": "Google Gemini Chat Model",
-      "credentials": {
-        "googlePalmApi": {
-          "id": "zv1FQ669nrhXbJGZ",
-          "name": "Google Gemini(PaLM) Api account"
-        }
-      }
+      "name": "Code1",
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -280,8 +226,8 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        -920,
-        60
+        -1140,
+        140
       ],
       "id": "a6cb377f-b718-4487-81bc-63cf9a0b38dd",
       "name": "When clicking ‘Test workflow’"
@@ -289,7 +235,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Extract the chat messages\nconst messages = $json.messages\nconst sender = $json.chatId;\n// Format the messages for the AI\nlet conversationHistory = messages.map(msg => {\n  const role = msg.fromMe ? 'assistant' : 'user';\n  return {\n    role,\n    content:  msg.body.replace(\"\\'\",\"\\\\'\")\n  };\n}).reverse(); // Reverse to get chronological order\n\n// Add system message at the beginning\nconversationHistory.unshift({\n  role: 'system',\n  content: 'You are a helpful WhatsApp assistant. Be concise, friendly, and helpful. If you don\\'t know something, say so politely.This is the chat between me and a client , Reply with a message to him, use the same language of the last message sent from the user'\n});\n\n    // chatInput: JSON.stringify(conversationHistory),\nreturn {\n  json: {\n    chatInput: conversationHistory,\n    sender\n  }\n};"
+        "jsCode": "// Extract the chat messages\nconst messages = $json.messages\nconst sender = $json.chatId;\n// Format the messages for the AI\nlet conversationHistory = messages.map(msg => {\n  const role = msg.fromMe ? 'assistant' : 'user';\n  return {\n    role,\n    content:  msg.body.replace(\"\\'\",\"\\\\'\")\n  };\n}).reverse(); // Reverse to get chronological order\n\n// Add system message at the beginning\n// conversationHistory.unshift({\n//   role: 'system',\n//   content: 'You are a helpful WhatsApp assistant. Be concise, friendly, and helpful. If you don\\'t know something, say so politely.This is the chat between me and a client , Reply with a message to him, use the same language of the last message sent from the user'\n// });\n\nreturn {\n    json: {\n      userMessage: messages[0].body,\n      sessionId: { id: sender },\n      chatInput: conversationHistory,\n      sender\n    }\n  }\n;\n    // chatInput: JSON.stringify(conversationHistory),"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -366,7 +312,7 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.1,
       "position": [
-        -80,
+        -220,
         220
       ],
       "id": "2fb89e54-f94e-4764-9a76-b3628048fa13",
@@ -374,30 +320,18 @@
     },
     {
       "parameters": {
-        "options": {}
+        "options": {
+          "systemMessage": "You are a helpful WhatsApp assistant. Be concise, friendly, and helpful. If you don't know something, say so politely.This is the chat between me and a client , Reply with a message to him, use the same language of the last message sent from the user"
+        }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.9,
       "position": [
-        1540,
-        -200
+        1520,
+        -220
       ],
       "id": "025f82dd-0e3c-45a5-abda-fb6352b013dd",
       "name": "AI Agent"
-    },
-    {
-      "parameters": {
-        "sessionIdType": "customKey",
-        "sessionKey": "={{ $json.sender }}"
-      },
-      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
-      "typeVersion": 1.3,
-      "position": [
-        1640,
-        0
-      ],
-      "id": "13aeaf27-149c-4558-81ab-e1380be4458a",
-      "name": "Simple Memory"
     },
     {
       "parameters": {
@@ -443,26 +377,6 @@
       ],
       "id": "c4aa66db-47e4-48ba-b594-568aff2a162c",
       "name": "Basic LLM Chain"
-    },
-    {
-      "parameters": {
-        "modelName": "models/gemini-2.0-flash-lite",
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
-      "typeVersion": 1,
-      "position": [
-        1480,
-        300
-      ],
-      "id": "a1e5e713-b596-435c-9e00-79f107d0a41f",
-      "name": "Google Gemini Chat Model2",
-      "credentials": {
-        "googlePalmApi": {
-          "id": "zv1FQ669nrhXbJGZ",
-          "name": "Google Gemini(PaLM) Api account"
-        }
-      }
     },
     {
       "parameters": {
@@ -512,6 +426,136 @@
       "id": "cc0444c4-7a2f-482d-aa0c-1914702e4336",
       "name": "Code5",
       "alwaysOutputData": false
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        -220,
+        -200
+      ],
+      "id": "f7722c6d-5c42-40c5-98c0-5ca7190808e1",
+      "name": "Merge3"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1M5SPii30dCnnUnLpGRZeJcnP8Mhh_OolJxQ0NFGixfo",
+          "mode": "list",
+          "cachedResultName": "whatsapp_integration",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1M5SPii30dCnnUnLpGRZeJcnP8Mhh_OolJxQ0NFGixfo/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 120046669,
+          "mode": "list",
+          "cachedResultName": "google_sheets_template",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1M5SPii30dCnnUnLpGRZeJcnP8Mhh_OolJxQ0NFGixfo/edit#gid=120046669"
+        },
+        "options": {}
+      },
+      "name": "Get row(s) in sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [
+        -740,
+        20
+      ],
+      "id": "42a6a121-3b48-4245-8c30-83c64fad5e37",
+      "alwaysOutputData": true,
+      "executeOnce": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "nybCA6Wi2Q9cutb6",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1060,
+        -100
+      ],
+      "id": "7126834d-2a89-4331-a028-6fcfde5e1723",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "3IBh084dg5oGwzQK",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "database",
+        "databaseId": {
+          "__rl": true,
+          "value": "14f72625-e9a4-8180-b67b-c8f035ecc69d",
+          "mode": "list",
+          "cachedResultName": "Notes",
+          "cachedResultUrl": "https://www.notion.so/14f72625e9a48180b67bc8f035ecc69d"
+        },
+        "simple": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Simplify', ``, 'boolean') }}"
+      },
+      "type": "n8n-nodes-base.notionTool",
+      "typeVersion": 2.2,
+      "position": [
+        1740,
+        0
+      ],
+      "id": "59685fbf-88ba-4742-a617-63e72135dda5",
+      "name": "Get a database in Notion",
+      "credentials": {
+        "notionApi": {
+          "id": "EJQ307tj46sD2Vkl",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        1620,
+        0
+      ],
+      "id": "2bc7fb50-ee82-47d5-8bdc-9026c795d32e",
+      "name": "Simple Memory",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.0-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        0
+      ],
+      "id": "a1e5e713-b596-435c-9e00-79f107d0a41f",
+      "name": "Google Gemini Chat Model2",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "zv1FQ669nrhXbJGZ",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
     }
   ],
   "connections": {
@@ -524,7 +568,7 @@
             "index": 0
           },
           {
-            "node": "Google Sheets",
+            "node": "Get row(s) in sheet",
             "type": "main",
             "index": 0
           },
@@ -580,27 +624,16 @@
         ]
       ]
     },
-    "Google Sheets": {
-      "main": [
-        [
-          {
-            "node": "Code",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Webhook": {
       "main": [
         [
           {
-            "node": "Merge2",
+            "node": "Merge3",
             "type": "main",
             "index": 1
           },
           {
-            "node": "Google Sheets1",
+            "node": "Get row(s) in sheet",
             "type": "main",
             "index": 0
           }
@@ -625,6 +658,11 @@
             "node": "Merge",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -635,17 +673,6 @@
           {
             "node": "If1",
             "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Google Gemini Chat Model": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "AI Agent",
-            "type": "ai_languageModel",
             "index": 0
           }
         ]
@@ -693,7 +720,7 @@
             "index": 0
           },
           {
-            "node": "Google Sheets",
+            "node": "Get row(s) in sheet",
             "type": "main",
             "index": 0
           },
@@ -709,7 +736,7 @@
       "main": [
         [
           {
-            "node": "Basic LLM Chain",
+            "node": "AI Agent",
             "type": "main",
             "index": 0
           }
@@ -771,17 +798,6 @@
         ]
       ]
     },
-    "Simple Memory": {
-      "ai_memory": [
-        [
-          {
-            "node": "AI Agent",
-            "type": "ai_memory",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "If1": {
       "main": [
         [
@@ -799,17 +815,6 @@
           {
             "node": "Send Reply",
             "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Google Gemini Chat Model2": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Basic LLM Chain",
-            "type": "ai_languageModel",
             "index": 0
           }
         ]
@@ -836,75 +841,70 @@
           }
         ]
       ]
+    },
+    "Merge3": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "Get a database in Notion": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "pinData": {
-    "Schedule Trigger": [
-      {
-        "timestamp": "2025-06-23T14:00:20.064-04:00",
-        "Readable date": "June 23rd 2025, 2:00:20 pm",
-        "Readable time": "2:00:20 pm",
-        "Day of week": "Monday",
-        "Year": "2025",
-        "Month": "June",
-        "Day of month": "23",
-        "Hour": "14",
-        "Minute": "00",
-        "Second": "20",
-        "Timezone": "America/New_York (UTC-04:00)"
-      }
-    ],
-    "Webhook": [
-      {
-        "headers": {
-          "host": "moved-mustang-outgoing.ngrok-free.app",
-          "user-agent": "WhatsApp-n8n-Server/1.0",
-          "content-length": "480",
-          "accept": "*/*",
-          "accept-encoding": "br, gzip, deflate",
-          "accept-language": "*",
-          "content-type": "application/json",
-          "sec-fetch-mode": "cors",
-          "x-forwarded-for": "154.136.19.125",
-          "x-forwarded-host": "moved-mustang-outgoing.ngrok-free.app",
-          "x-forwarded-proto": "https"
-        },
-        "params": {},
-        "query": {},
-        "body": {
-          "message": {
-            "id": "false_201115205568@c.us_8C4326A1296F15F77619030BE4C563B2",
-            "body": "ثم ٢٠٠",
-            "originalBody": "ثم ٢٠٠",
-            "from": "201115205568@c.us",
-            "to": "201050003138@c.us",
-            "timestamp": 1750748604,
-            "type": "chat",
-            "hasMedia": false,
-            "deviceType": "android",
-            "transcription": null
-          },
-          "chat": {
-            "id": "201115205568@c.us",
-            "name": "حلول للانظمة الذكيه",
-            "isGroup": false
-          },
-          "contact": {
-            "id": "201115205568@c.us",
-            "name": "حلول للانظمة الذكيه",
-            "number": "201115205568"
-          }
-        },
-        "webhookUrl": "https://moved-mustang-outgoing.ngrok-free.app/webhook/whatsapp-incoming",
-        "executionMode": "production"
-      }
-    ],
-    "When clicking ‘Test workflow’": [
-      {}
-    ]
-  },
+  "pinData": {},
   "meta": {
-    "templateCredsSetupCompleted": true,
     "instanceId": "e501e53e2db7db55d235cb2c13f5488f532820ae780081ff9d79539c74ed3ce3"
   }
 }
